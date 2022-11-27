@@ -16,9 +16,12 @@ import (
 	"greenlight.swsd2544.net/internal/data"
 	"greenlight.swsd2544.net/internal/jsonlog"
 	"greenlight.swsd2544.net/internal/mailer"
+	"greenlight.swsd2544.net/internal/vcs"
 )
 
-const version = "1.0.0"
+var (
+	version = vcs.Version()
+)
 
 type config struct {
 	port int
