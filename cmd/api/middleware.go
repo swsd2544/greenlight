@@ -32,8 +32,8 @@ func (app *application) recoverPanic(next http.Handler) http.Handler {
 
 func (app *application) rateLimit(next http.Handler) http.Handler {
 	type client struct {
-		limiter  *rate.Limiter
 		lastSeen time.Time
+		limiter  *rate.Limiter
 	}
 
 	var (

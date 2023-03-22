@@ -18,13 +18,13 @@ var (
 var AnonymousUser = &User{}
 
 type User struct {
-	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at"`
 	Name      string    `json:"name"`
 	Email     string    `json:"email"`
 	Password  password  `json:"-"`
-	Activated bool      `json:"activated"`
+	ID        int64     `json:"id"`
 	Version   int       `json:"-"`
+	Activated bool      `json:"activated"`
 }
 
 func (u *User) IsAnonymous() bool {

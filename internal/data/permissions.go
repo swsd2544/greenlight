@@ -44,9 +44,9 @@ func (m PermissionModel) GetAllForUser(userID int64) (Permissions, error) {
 	for rows.Next() {
 		var permission string
 
-		err := rows.Scan(&permission)
-		if err != nil {
-			return nil, err
+		errScan := rows.Scan(&permission)
+		if errScan != nil {
+			return nil, errScan
 		}
 
 		permissions = append(permissions, permission)

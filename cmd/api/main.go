@@ -24,37 +24,35 @@ var (
 )
 
 type config struct {
-	port int
+	smtp struct {
+		host     string
+		username string
+		password string
+		sender   string
+		port     int
+	}
 	env  string
+	cors struct{ trustedOrigins []string }
 	db   struct {
 		dsn          string
+		maxIdleTime  string
 		maxOpenConns int
 		maxIdleConns int
-		maxIdleTime  string
 	}
 	limiter struct {
 		rps     float64
 		burst   int
 		enabled bool
 	}
-	smtp struct {
-		host     string
-		port     int
-		username string
-		password string
-		sender   string
-	}
-	cors struct {
-		trustedOrigins []string
-	}
+	port int
 }
 
 type application struct {
-	config config
-	logger *jsonlog.Logger
-	models data.Models
-	mailer mailer.Mailer
 	wg     sync.WaitGroup
+	models data.Models
+	logger *jsonlog.Logger
+	mailer mailer.Mailer
+	config config
 }
 
 func main() {

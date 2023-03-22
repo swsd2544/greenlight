@@ -12,12 +12,12 @@ import (
 )
 
 type Movie struct {
-	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"-"`
 	Title     string    `json:"title"`
+	Genres    []string  `json:"genres,omitempty"`
+	ID        int64     `json:"id"`
 	Year      int32     `json:"year,omitempty"`
 	Runtime   Runtime   `json:"runtime,omitempty"`
-	Genres    []string  `json:"genres,omitempty"`
 	Version   int32     `json:"version"`
 }
 
@@ -170,7 +170,7 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
 	for rows.Next() {
 		var movie Movie
 
-		err := rows.Scan(
+		errScan := rows.Scan(
 			&totalRecords,
 			&movie.ID,
 			&movie.CreatedAt,
@@ -180,9 +180,8 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
 			pq.Array(&movie.Genres),
 			&movie.Version,
 		)
-
-		if err != nil {
-			return nil, Metadata{}, err
+		if errScan != nil {
+			return nil, Metadata{}, errScan
 		}
 
 		movies = append(movies, &movie)

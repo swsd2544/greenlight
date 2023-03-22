@@ -8,10 +8,10 @@ import (
 )
 
 type Filters struct {
-	Page         int
-	PageSize     int
 	Sort         string
 	SortSafeList []string
+	Page         int
+	PageSize     int
 }
 
 func ValidateFilters(v *validator.Validator, f Filters) {
