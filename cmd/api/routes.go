@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func (app *application) routes() http.Handler {
@@ -15,16 +16,16 @@ func (app *application) routes() http.Handler {
 
 	router.HandlerFunc(http.MethodGet, "/v1/healthcheck", app.healthcheckHandler)
 
-	router.HandlerFunc(http.MethodGet, "/v1/movies", app.requirePermission("movies:read", app.listMoviesHandler))
-	router.HandlerFunc(http.MethodPost, "/v1/movies", app.requirePermission("movies:write", app.createMovieHandler))
-	router.HandlerFunc(http.MethodGet, "/v1/movies/:id", app.requirePermission("movies:read", app.showMovieHandler))
-	router.HandlerFunc(http.MethodPatch, "/v1/movies/:id", app.requirePermission("movies:write", app.updateMovieHandler))
-	router.HandlerFunc(http.MethodDelete, "/v1/movies/:id", app.requirePermission("movies:write", app.deleteMovieHandler))
+	router.Handler(http.MethodGet, "/v1/movies", otelhttp.NewHandler(app.requirePermission("movies:read", app.listMoviesHandler), "listMovies"))
+	router.Handler(http.MethodPost, "/v1/movies", otelhttp.NewHandler(app.requirePermission("movies:write", app.createMovieHandler), "createMovie"))
+	router.Handler(http.MethodGet, "/v1/movies/:id", otelhttp.NewHandler(app.requirePermission("movies:read", app.showMovieHandler), "showMovie"))
+	router.Handler(http.MethodPatch, "/v1/movies/:id", otelhttp.NewHandler(app.requirePermission("movies:write", app.updateMovieHandler), "updateMovie"))
+	router.Handler(http.MethodDelete, "/v1/movies/:id", otelhttp.NewHandler(app.requirePermission("movies:write", app.deleteMovieHandler), "deleteMovie"))
 
-	router.HandlerFunc(http.MethodPost, "/v1/users", app.registerUserHandler)
-	router.HandlerFunc(http.MethodPut, "/v1/users/activated", app.activateUserHandler)
+	router.Handler(http.MethodPost, "/v1/users", otelhttp.NewHandler(http.HandlerFunc(app.registerUserHandler), "registerUser"))
+	router.Handler(http.MethodPut, "/v1/users/activated", otelhttp.NewHandler(http.HandlerFunc(app.activateUserHandler), "activateUser"))
 
-	router.HandlerFunc(http.MethodPost, "/v1/tokens/authentication", app.createAuthenticationHandler)
+	router.Handler(http.MethodPost, "/v1/tokens/authentication", otelhttp.NewHandler(http.HandlerFunc(app.createAuthenticationHandler), "createAuthentication"))
 
 	router.Handler(http.MethodGet, "/debug/vars", expvar.Handler())
 

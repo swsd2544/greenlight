@@ -17,6 +17,16 @@ import (
 	"greenlight.swsd2544.net/internal/jsonlog"
 	"greenlight.swsd2544.net/internal/mailer"
 	"greenlight.swsd2544.net/internal/vcs"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/stdout/stdoutmetric"
+	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/metric/global"
+	"go.opentelemetry.io/otel/propagation"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 )
 
 var (
@@ -55,6 +65,37 @@ type application struct {
 	config config
 }
 
+func initTracer() (*sdktrace.TracerProvider, error) {
+	// Create stdout exporter to be able to retrieve
+	// the collected spans.
+	exporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
+	if err != nil {
+		return nil, err
+	}
+
+	// For the demonstration, use sdktrace.AlwaysSample sampler to sample all traces.
+	// In a production application, use sdktrace.ProbabilitySampler with a desired probability.
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceName("ExampleService"))),
+	)
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+	return tp, err
+}
+
+func initMeter() (*sdkmetric.MeterProvider, error) {
+	exp, err := stdoutmetric.New()
+	if err != nil {
+		return nil, err
+	}
+
+	mp := sdkmetric.NewMeterProvider(sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exp)))
+	global.SetMeterProvider(mp)
+	return mp, nil
+}
+
 func main() {
 	var cfg config
 
@@ -87,6 +128,26 @@ func main() {
 	}
 
 	logger := jsonlog.New(os.Stdout, jsonlog.LevelInfo)
+
+	tp, err := initTracer()
+	if err != nil {
+		logger.PrintFatal(err, nil)
+	}
+	defer func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			logger.PrintError(fmt.Errorf("error shutting down tracer provider: %w", err), nil)
+		}
+	}()
+
+	mp, err := initMeter()
+	if err != nil {
+		logger.PrintFatal(err, nil)
+	}
+	defer func() {
+		if err := mp.Shutdown(context.Background()); err != nil {
+			logger.PrintError(fmt.Errorf("error shutting down meter provider: %w", err), nil)
+		}
+	}()
 
 	db, err := openDB(cfg)
 	if err != nil {
