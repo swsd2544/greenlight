@@ -29,9 +29,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
 )
 
-var (
-	version = vcs.Version()
-)
+var version = vcs.Version()
 
 type config struct {
 	smtp struct {
