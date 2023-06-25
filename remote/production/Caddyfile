@@ -1,8 +1,0 @@
-{
-  email swsd2544@gmail.com
-}
-
-128.199.199.132 {
-  respond /debug/* "Not Permitted" 403
-  reverse_proxy localhost:4000
-}
