@@ -1,10 +1,12 @@
 include .envrc
 
-#
+# Change these variables as necessary.
+MAIN_PACKAGE_PATH := cmd/api
+BINARY_NAME := greenlight
+
 # ==================================================================================== #
 # HELPERS
 # ==================================================================================== #
-#
 
 ## help: print this help message
 .PHONY: help
@@ -14,18 +16,36 @@ help:
 
 .PHONY: confirm
 confirm:
-	@echo 'Are you sure? [y/N] ' && read ans && [ $${ans} = y ]
+	@echo -n 'Are you sure? [y/N] ' && read ans && [ $${ans:-N} = y ]
+
+.PHONY: no-dirty
+no-dirty:
+	git diff --exit-code
+
+# ==================================================================================== #
+# QUALITY CONTROL
+# ==================================================================================== #
+
+## tidy: format code and tidy modfile
+.PHONY: tidy
+tidy:
+	go fmt ./...
+	go mod tidy -v
+
+## audit: run quality control checks
+.PHONY: audit
+audit:
+	go mod verify
+	go vet ./...
+	go run honnef.co/go/tools/cmd/staticcheck@latest -checks=all,-ST1000,-U1000 ./...
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+	go test -race -buildvcs -vet=off ./...
 
 #
 # ==================================================================================== #
-# DEVELOPMENT
+# DATABASE
 # ==================================================================================== #
 #
-
-## run/api: run the cmd/api application
-.PHONY: run/api
-run/api:
-	go run ./cmd/api -db-dsn=${GREENLIGHT_DB_DSN}
 
 ## db/psql: connect to the database using psql
 .PHONY: db/psql
@@ -44,66 +64,53 @@ db/migrations/up: confirm
 	@echo 'Running up migrations'
 	migrate -path ./migrations -database ${GREENLIGHT_DB_DSN} up
 
-#
 # ==================================================================================== #
-# HELPERS
+# DEVELOPMENT
 # ==================================================================================== #
-#
 
-## audit: tidy dependencies and format, vet and test all code
-.PHONY: audit
-audit: vendor
-	@echo 'Formatting code...'
-	go fmt ./...
-	@echo 'Vetting code'
-	go vet ./...
-	staticcheck ./...
-	@echo 'Running tests...'
-	go test -race -vet=off ./...
+## test: run all tests
+.PHONY: test
+test:
+	go test -v -race -buildvcs ./...
 
-## vendor: tidy and vendor dependencies
-.PHONY: vendor
-vendor:
-	@echo 'Tidying and verifying module dependencies...'
-	go mod tidy
-	go mod verify
-	@echo 'Vendoring depndencies'
-	go mod vendor
+## test/cover: run all tests and display coverage
+.PHONY: test/cover
+test/cover:
+	go test -v -race -buildvcs -coverprofile=/tmp/coverage.out ./...
+	go tool cover -html=/tmp/coverage.out
 
-#
+## build: build the application
+.PHONY: build
+build:
+	# Include additional build steps, like TypeScript, SCSS or Tailwind compilation here...
+	go build -o=/tmp/bin/${BINARY_NAME} ${MAIN_PACKAGE_PATH}
+
+## run: run the  application
+.PHONY: run
+run: build
+	/tmp/bin/${BINARY_NAME} -db-dsn ${GREENLIGHT_DB_DSN}
+
+## run/live: run the application with reloading on file changes
+.PHONY: run/live
+run/live:
+	go run github.com/cosmtrek/air@v1.43.0 \
+	--build.cmd "make build" --build.bin "/tmp/bin/${BINARY_NAME}" --build.delay "100" \
+	--build.exclude_dir "" \
+	--build.include_ext "go, tpl, tmpl, html, css, scss, js, ts, sql, jpeg, jpg, gif, png, bmp, svg, webp, ico" \
+	--misc.clean_on_exit "true"
+
 # ==================================================================================== #
-# BUILD
+# OPERATIONS
 # ==================================================================================== #
-#
 
-.PHONY: build/api
-build/api:
-	@echo 'Building cmd/api'
-	go build -ldflags='-s' -o=./bin/api ./cmd/api
-	GOOS=linux GOARCH=amd64 go build -ldflags='-s' -o=./bin/linux_amd64/api ./cmd/api
+## push: push changes to the remote Git repository
+.PHONY: push
+push: tidy audit no-dirty
+	git push
 
-#
-# ==================================================================================== #
-# PRODUCTION
-# ==================================================================================== #
-#
-
-## production/connect: connect to the production server
-.PHONY: production/connect
-production/connect:
-	ssh greenlight@${PRODUCTION_HOST_IP}
-
-.PHONY: production/deploy/api
-production/deploy/api:
-	rsync -P ./bin/linux_amd64/api greenlight@${PRODUCTION_HOST_IP}:~
-	rsync -rP --delete ./migrations greenlight@${PRODUCTION_HOST_IP}:~
-	rsync -P ./remote/production/api.service greenlight@${PRODUCTION_HOST_IP}:~
-	rsync -P ./remote/production/Caddyfile greenlight@${PRODUCTION_HOST_IP}:~
-	ssh -t greenlight@${PRODUCTION_HOST_IP} '\
-	migrate -path ~/migrations -database $$GREENLIGHT_DB_DSN up \
-	&& sudo mv ~/api.service /etc/systemd/system/ \
-	&& sudo systemctl enable api \
-	&& sudo systemctl restart api \
-	&& sudo mv ~/Caddyfile /etc/caddy/ \
-	&& sudo systemctl reload caddy \
-	'
+## production/deploy: deploy the application to production
+.PHONY: production/deploy
+production/deploy: confirm tidy audit no-dirty
+	GOOS=linux GOARCH=amd64 go build -ldflags='-s' -o=/tmp/bin/linux_amd64/${BINARY_NAME} ${MAIN_PACKAGE_PATH}
+	upx -5 /tmp/bin/linux_amd64/${BINARY_NAME}
+	# Include additional deployment steps here...
