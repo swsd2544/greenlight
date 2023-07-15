@@ -5,6 +5,7 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -12,10 +13,45 @@ import (
 	"greenlight.swsd2544.net/internal/data"
 	"greenlight.swsd2544.net/internal/validator"
 
-	"github.com/felixge/httpsnoop"
 	"github.com/tomasen/realip"
 	"golang.org/x/time/rate"
 )
+
+var _ http.ResponseWriter = (*metricsResponseWriter)(nil)
+
+type metricsResponseWriter struct {
+	wrapped       http.ResponseWriter
+	statusCode    int
+	headerWritten bool
+}
+
+func newMetricsResponseWriter(w http.ResponseWriter) *metricsResponseWriter {
+	return &metricsResponseWriter{
+		wrapped:    w,
+		statusCode: http.StatusOK,
+	}
+}
+
+func (mw *metricsResponseWriter) Header() http.Header {
+	return mw.wrapped.Header()
+}
+
+func (mw *metricsResponseWriter) Write(b []byte) (int, error) {
+	return mw.wrapped.Write(b)
+}
+
+func (mw *metricsResponseWriter) WriteHeader(statusCode int) {
+	mw.wrapped.WriteHeader(statusCode)
+
+	if !mw.headerWritten {
+		mw.statusCode = statusCode
+		mw.headerWritten = true
+	}
+}
+
+func (mw *metricsResponseWriter) Unwrap() http.ResponseWriter {
+	return mw.wrapped
+}
 
 func (app *application) recoverPanic(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -208,12 +244,17 @@ func (app *application) metrics(next http.Handler) http.Handler {
 	totalResponsesSentByStatus := expvar.NewMap("total_responses_sent_by_status")
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
 		totalRequestsReceived.Add(1)
 
-		metrics := httpsnoop.CaptureMetrics(next, w, r)
+		mw := newMetricsResponseWriter(w)
+
+		next.ServeHTTP(mw, r)
 
 		totalResponsesSent.Add(1)
-		totalProcessingTimeMicroseconds.Add(metrics.Duration.Microseconds())
-		totalResponsesSentByStatus.Add(fmt.Sprint(metrics.Code), 1)
+		totalResponsesSentByStatus.Add(strconv.Itoa(mw.statusCode), 1)
+		duration := time.Since(start).Microseconds()
+		totalProcessingTimeMicroseconds.Add(duration)
 	})
 }
