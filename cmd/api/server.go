@@ -29,10 +29,7 @@ func (app *application) serve() error {
 		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 		s := <-quit
 
-		app.logger.PrintInfo("caught signal", map[string]string{
-			"signal": s.String(),
-		})
-
+		app.logger.Info().Str("signal", s.String()).Msg("caught signal")
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 
@@ -41,19 +38,12 @@ func (app *application) serve() error {
 			shutdownError <- err
 		}
 
-		app.logger.PrintInfo("completing background tasks", map[string]string{
-			"addr": srv.Addr,
-		})
-
+		app.logger.Info().Str("addr", srv.Addr).Msg("completing background tasks")
 		app.wg.Wait()
 		shutdownError <- nil
 	}()
 
-	app.logger.PrintInfo("starting server", map[string]string{
-		"addr": srv.Addr,
-		"env":  app.config.env,
-	})
-
+	app.logger.Info().Str("addr", srv.Addr).Str("env", app.config.env).Msg("starting server")
 	err := srv.ListenAndServe()
 	if !errors.Is(err, http.ErrServerClosed) {
 		return err
@@ -64,9 +54,6 @@ func (app *application) serve() error {
 		return err
 	}
 
-	app.logger.PrintInfo("stopped server", map[string]string{
-		"addr": srv.Addr,
-	})
-
+	app.logger.Info().Str("addr", srv.Addr).Msg("stopped server")
 	return nil
 }
