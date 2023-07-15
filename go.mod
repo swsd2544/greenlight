@@ -1,6 +1,6 @@
 module greenlight.swsd2544.net
 
-go 1.19
+go 1.20
 
 require (
 	github.com/go-mail/mail/v2 v2.3.0
