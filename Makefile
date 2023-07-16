@@ -1,7 +1,7 @@
 include .envrc
 
 # Change these variables as necessary.
-MAIN_PACKAGE_PATH := cmd/api
+MAIN_PACKAGE_PATH := ./cmd/api
 BINARY_NAME := greenlight
 
 # ==================================================================================== #
@@ -84,7 +84,7 @@ test/cover:
 .PHONY: build
 build:
 	# Include additional build steps, like TypeScript, SCSS or Tailwind compilation here...
-	go build -o=/tmp/bin/${BINARY_NAME} ${MAIN_PACKAGE_PATH}
+	go build -o /tmp/bin/${BINARY_NAME} ${MAIN_PACKAGE_PATH}
 
 ## run: run the  application
 .PHONY: run
@@ -99,6 +99,10 @@ run/live:
 	--build.exclude_dir "" \
 	--build.include_ext "go, tpl, tmpl, html, css, scss, js, ts, sql, jpeg, jpg, gif, png, bmp, svg, webp, ico" \
 	--misc.clean_on_exit "true"
+
+## docker/run-otlp: run the application with OpenTelemetry inside a Docker container
+docker/run-otlp:
+	docker compose up --build
 
 # ==================================================================================== #
 # OPERATIONS

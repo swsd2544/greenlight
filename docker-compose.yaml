@@ -1,0 +1,111 @@
+version: "3.8"
+services:
+  # Postgres
+  db:
+    image: postgres:latest
+    restart: always
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: greenlight
+      POSTGRES_USER: greenlight_db_admin
+      POSTGRES_PASSWORD: password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U greenlight_db_admin -d greenlight"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
+  # Golang Migrate
+  migrate:
+    image: migrate/migrate
+    volumes:
+      - ./migrations:/migrations
+    entrypoint: 
+      [
+        "migrate",
+        "-path",
+        "/migrations",
+        "-database",
+        "postgres://greenlight_db_admin:password@db:5432/greenlight?sslmode=disable",
+      ]
+    command: ["up"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure
+
+  # Jaeger
+  jaeger-all-in-one:
+    image: jaegertracing/all-in-one:latest
+    restart: always
+    ports:
+      - "16686:16686"
+      - "14268"
+      - "14250"
+
+  # Zipkin
+  zipkin-all-in-one:
+    image: openzipkin/zipkin:latest
+    restart: always
+    ports:
+      - "9411:9411"
+
+  # Collector
+  otel-collector:
+    image: otel/opentelemetry-collector
+    restart: always
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "1888:1888"   # pprof extension
+      - "8888:8888"   # Prometheus metrics exposed by the collector
+      - "8889:8889"   # Prometheus exporter metrics
+      - "13133:13133" # health_check extension
+      - "4317:4317"   # OTLP gRPC receiver
+      - "55679:55679" # zpages extension
+    depends_on:
+      - jaeger-all-in-one
+      - zipkin-all-in-one
+
+  # Prometheus
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:latest
+    restart: always
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+
+  # Server
+  server:
+    container_name: greenlight-server
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    command: 
+      [ 
+        "-port", 
+        "4000", 
+        "-db-dsn", 
+        "postgres://greenlight_db_admin:password@db:5432/greenlight?sslmode=disable", 
+        "-otlp-endpoint", 
+        "otel-collector:4317",
+      ]
+    links: 
+      - db:db
+    depends_on:
+      db: 
+        condition: service_healthy
+      migrate: 
+        condition: service_started
+    ports:
+      - 4000:4000
+
+volumes:
+  postgres_data:
