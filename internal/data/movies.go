@@ -43,7 +43,6 @@ type MovieModel struct {
 }
 
 func (m MovieModel) Insert(movie *Movie) error {
-
 	query := `INSERT INTO movies (title, year, runtime, genres)
 	VALUES ($1, $2, $3, $4) RETURNING id, created_at, version`
 
@@ -77,7 +76,6 @@ func (m MovieModel) Get(id int64) (*Movie, error) {
 		pq.Array(&movie.Genres),
 		&movie.Version,
 	)
-
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):

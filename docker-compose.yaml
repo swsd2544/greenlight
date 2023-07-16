@@ -96,6 +96,8 @@ services:
         "postgres://greenlight_db_admin:password@db:5432/greenlight?sslmode=disable", 
         "-otlp-endpoint", 
         "otel-collector:4317",
+        "-otlp-enabled",
+        "true"
       ]
     links: 
       - db:db

@@ -3,6 +3,9 @@ package main
 import (
 	"fmt"
 	"net/http"
+
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func (app *application) logError(r *http.Request, err error) {
@@ -12,16 +15,22 @@ func (app *application) logError(r *http.Request, err error) {
 func (app *application) errorResponse(w http.ResponseWriter, r *http.Request, status int, message any) {
 	env := envelope{"error": message}
 
+	span := trace.SpanFromContext(r.Context())
+	span.SetStatus(codes.Error, fmt.Sprintf("%s", message))
+
 	err := app.writeJSON(w, status, env, nil)
 	if err != nil {
 		app.logError(r, err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, fmt.Sprintf("failed to write error back to user: %s", message))
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
 
 func (app *application) serverErrorResponse(w http.ResponseWriter, r *http.Request, err error) {
 	app.logError(r, err)
-
+	span := trace.SpanFromContext(r.Context())
+	span.RecordError(err)
 	message := "the server encountered a problem and could not process your request"
 	app.errorResponse(w, r, http.StatusInternalServerError, message)
 }
@@ -37,6 +46,8 @@ func (app *application) methodNotAllowedResponse(w http.ResponseWriter, r *http.
 }
 
 func (app *application) badRequestResponse(w http.ResponseWriter, r *http.Request, err error) {
+	span := trace.SpanFromContext(r.Context())
+	span.RecordError(err)
 	app.errorResponse(w, r, http.StatusBadRequest, err.Error())
 }
 

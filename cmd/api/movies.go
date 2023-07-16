@@ -5,16 +5,11 @@ import (
 	"fmt"
 	"net/http"
 
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/codes"
 	"greenlight.swsd2544.net/internal/data"
 	"greenlight.swsd2544.net/internal/validator"
 )
 
 func (app *application) createMovieHandler(w http.ResponseWriter, r *http.Request) {
-	_, span := otel.Tracer(app.config.name).Start(r.Context(), "createMovie")
-	defer span.End()
-
 	var input struct {
 		Title   string       `json:"title"`
 		Genres  []string     `json:"genres"`
@@ -24,8 +19,6 @@ func (app *application) createMovieHandler(w http.ResponseWriter, r *http.Reques
 
 	err := app.readJSON(w, r, &input)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		app.badRequestResponse(w, r, err)
 		return
 	}
@@ -40,17 +33,12 @@ func (app *application) createMovieHandler(w http.ResponseWriter, r *http.Reques
 	v := validator.New()
 
 	if data.ValidateMovie(v, movie); !v.Valid() {
-		err := fmt.Errorf("failed to validate input: %v", v.Errors)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
 	err = app.models.Movies.Insert(movie)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		app.serverErrorResponse(w, r, err)
 		return
 	}
@@ -60,28 +48,19 @@ func (app *application) createMovieHandler(w http.ResponseWriter, r *http.Reques
 
 	err = app.writeJSON(w, http.StatusCreated, envelope{"movie": movie}, headers)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		app.serverErrorResponse(w, r, err)
 	}
 }
 
 func (app *application) showMovieHandler(w http.ResponseWriter, r *http.Request) {
-	_, span := otel.Tracer(app.config.name).Start(r.Context(), "showMovie")
-	defer span.End()
-
 	id, err := app.readIDParam(r)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		app.notFoundResponse(w, r)
 		return
 	}
 
 	movie, err := app.models.Movies.Get(id)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
 			app.notFoundResponse(w, r)
@@ -93,28 +72,19 @@ func (app *application) showMovieHandler(w http.ResponseWriter, r *http.Request)
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"movie": movie}, nil)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		app.serverErrorResponse(w, r, err)
 	}
 }
 
 func (app *application) updateMovieHandler(w http.ResponseWriter, r *http.Request) {
-	_, span := otel.Tracer(app.config.name).Start(r.Context(), "updateMovie")
-	defer span.End()
-
 	id, err := app.readIDParam(r)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		app.notFoundResponse(w, r)
 		return
 	}
 
 	movie, err := app.models.Movies.Get(id)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
 			app.notFoundResponse(w, r)
@@ -133,8 +103,6 @@ func (app *application) updateMovieHandler(w http.ResponseWriter, r *http.Reques
 
 	err = app.readJSON(w, r, &input)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		app.badRequestResponse(w, r, err)
 		return
 	}
@@ -155,17 +123,12 @@ func (app *application) updateMovieHandler(w http.ResponseWriter, r *http.Reques
 	v := validator.New()
 
 	if data.ValidateMovie(v, movie); !v.Valid() {
-		err := fmt.Errorf("failed to validate input: %v", v.Errors)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
 	err = app.models.Movies.Update(movie)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		switch {
 		case errors.Is(err, data.ErrEditConflict):
 			app.editConflictResponse(w, r)
@@ -177,28 +140,19 @@ func (app *application) updateMovieHandler(w http.ResponseWriter, r *http.Reques
 
 	err = app.writeJSON(w, http.StatusCreated, envelope{"movie": movie}, nil)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		app.serverErrorResponse(w, r, err)
 	}
 }
 
 func (app *application) deleteMovieHandler(w http.ResponseWriter, r *http.Request) {
-	_, span := otel.Tracer(app.config.name).Start(r.Context(), "deleteMovie")
-	defer span.End()
-
 	id, err := app.readIDParam(r)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		app.notFoundResponse(w, r)
 		return
 	}
 
 	err = app.models.Movies.Delete(id)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
 			app.notFoundResponse(w, r)
@@ -210,16 +164,11 @@ func (app *application) deleteMovieHandler(w http.ResponseWriter, r *http.Reques
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"message": "movie successfully deleted"}, nil)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		app.serverErrorResponse(w, r, err)
 	}
 }
 
 func (app *application) listMoviesHandler(w http.ResponseWriter, r *http.Request) {
-	_, span := otel.Tracer(app.config.name).Start(r.Context(), "listMovies")
-	defer span.End()
-
 	var input struct {
 		Title  string
 		Genres []string
@@ -241,25 +190,18 @@ func (app *application) listMoviesHandler(w http.ResponseWriter, r *http.Request
 	}
 
 	if data.ValidateFilters(v, input.Filters); !v.Valid() {
-		err := fmt.Errorf("failed to validate input filters: %v", v.Errors)
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
 	movies, metadata, err := app.models.Movies.GetAll(input.Title, input.Genres, input.Filters)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		app.serverErrorResponse(w, r, err)
 		return
 	}
 
 	err = app.writeJSON(w, http.StatusOK, envelope{"movies": movies, "metadata": metadata}, nil)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		app.serverErrorResponse(w, r, err)
 	}
 }
