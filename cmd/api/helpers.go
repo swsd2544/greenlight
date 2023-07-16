@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"github.com/julienschmidt/httprouter"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"greenlight.swsd2544.net/internal/validator"
 )
 
@@ -46,6 +48,9 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data envelo
 }
 
 func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any) error {
+	_, span := otel.Tracer(app.config.name).Start(r.Context(), "readJSON")
+	defer span.End()
+
 	maxBytes := 1 << 20 // 1 MB
 	r.Body = http.MaxBytesReader(w, r.Body, int64(maxBytes))
 
@@ -54,6 +59,9 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any
 
 	err := dec.Decode(dst)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
 		var syntaxError *json.SyntaxError
 		var unmarshalTypeError *json.UnmarshalTypeError
 		var invalidUnmarshallError *json.InvalidUnmarshalError
@@ -86,7 +94,10 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any
 
 	err = dec.Decode(&struct{}{})
 	if err != io.EOF {
-		return errors.New("body must only contains a single JSON value")
+		err = errors.New("body must only contains a single JSON value")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
 	}
 
 	return nil
