@@ -160,10 +160,12 @@ func (m MovieModel) GetAll(title string, genres []string, filters Filters) ([]*M
 		return nil, Metadata{}, err
 	}
 
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	totalRecords := 0
-	movies := []*Movie{}
+	var movies []*Movie
 
 	for rows.Next() {
 		var movie Movie

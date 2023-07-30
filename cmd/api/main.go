@@ -126,11 +126,16 @@ func main() {
 		logger.Fatal().Err(err).Msg("failed to open database connection")
 	}
 
-	defer db.Close()
+	defer func() {
+		err := db.Close()
+		if err != nil {
+			logger.Error().Err(err).Msg("failed to close database connection")
+		}
+	}()
 	logger.Info().Msg("opened database connection pool")
 
 	models := data.NewModels(db)
-	mailer := mailer.New(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender)
+	mailerService := mailer.New(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender)
 
 	expvar.NewString("version").Set(version)
 	expvar.Publish("goroutines", expvar.Func(func() any {
@@ -147,7 +152,7 @@ func main() {
 		config: cfg,
 		logger: logger,
 		models: models,
-		mailer: mailer,
+		mailer: mailerService,
 	}
 
 	err = app.serve()

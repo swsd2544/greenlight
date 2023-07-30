@@ -66,12 +66,12 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 	}
 
 	app.background(func() {
-		data := map[string]any{
+		payload := map[string]any{
 			"activationToken": token.Plaintext,
 			"userId":          user.ID,
 		}
 
-		err = app.mailer.Send(user.Email, "user_welcome.html", data)
+		err = app.mailer.Send(user.Email, "user_welcome.html", payload)
 		if err != nil {
 			app.logger.Error().Err(err).Msg("failed to send email to user")
 		}
